@@ -201,11 +201,10 @@ public class WekaClass {
         Classifier cl = loadModel("src\\java\\resource\\news");
         ArrayList<Integer> listWrong = new ArrayList<Integer>();
         
-        Instances tempTrain = RemoveAttribute(dataTrain);
-        tempTrain = Preproccess(tempTrain);
+        //bikin list label
         ArrayList<String> listLabel = new ArrayList();
-        for (int i=0; i<tempTrain.classAttribute().numValues(); i++){
-            listLabel.add(i, tempTrain.classAttribute().value(i));
+        for (int i=0; i<dataTrain.classAttribute().numValues(); i++){
+            listLabel.add(i, dataTrain.classAttribute().value(i));
         }
         
         //preproccess
@@ -231,25 +230,28 @@ public class WekaClass {
     }
     
     //classify text
-    public void classifyIns (Instances inst) throws Exception {
+    public void classifyIns (Instances inst, Instances dataTrain) throws Exception {
         Classifier cl = loadModel("src\\java\\resource\\bayes");
         Instances temp =null;
+        
+        //bikin list label
+        ArrayList<String> listLabel = new ArrayList();
+        for (int i=0; i<dataTrain.classAttribute().numValues(); i++){
+            listLabel.add(i, dataTrain.classAttribute().value(i));
+        }
         
         //preproccess
         temp = Preproccess(inst);
         
         System.out.println("--- Do classify");
         for (int i = 0; i<temp.numInstances(); i++) {
-            String actual = temp.instance(i).attribute(1).toString();
-            //double actual = temp.instance(i).classValue();
+            String actual = temp.classAttribute().value((int) temp.instance(i).classValue()); //Ngeluarin label bertipe string dari actual
+            double actualDouble = listLabel.indexOf(actual); //mencari index dari label actual di listLabel
             double ipred = cl.classifyInstance(temp.instance(i));
-            System.out.println("ipred: " + ipred + ", actual: " + actual);
-            //String pred = temp.classAttribute().value((int)ipred);
-            System.out.println(i);
-            //System.out.println("pred: " + pred + ", actual: " + actual);
-            //if (!pred.equals(actual)) {
-            //    TO DO
-            //}
+            System.out.println("ipred: " + ipred + ", actual: " + actualDouble);
+            if (ipred!=actualDouble) {
+                // TODO Wrong
+            }
         }
     }
     
