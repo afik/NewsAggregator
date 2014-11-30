@@ -1,12 +1,17 @@
 package model;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.bayes.NaiveBayesMultinomial;
 import weka.classifiers.meta.FilteredClassifier;
+import weka.core.Attribute;
+import weka.core.DenseInstance;
+import weka.core.FastVector;
 import weka.core.Instances;
 import weka.core.SerializationHelper;
 import weka.core.converters.ConverterUtils.DataSource;
@@ -25,19 +30,20 @@ import weka.filters.unsupervised.attribute.StringToWordVector;
  */
 public class WekaClass {
     
+    //load data train/test, full path
     public Instances loadData(String path) throws Exception {
         Instances dat = null;
         dat = DataSource.read(path);
         dat.setClassIndex(dat.numAttributes()-1);
-//        System.out.println("class index load data: " + dat.classIndex() + ", name :" + dat.attribute(dat.classIndex()).name() + ", isNominal: " + dat.attribute(dat.classIndex()).isNominal());
         System.out.println("Instances loaded");
+//        System.out.println("class index load data: " + dat.classIndex() + ", name :" + dat.attribute(dat.classIndex()).name() + ", isNominal: " + dat.attribute(dat.classIndex()).isNominal());        
 //        for (int i=0; i<10; i++) {
 //            System.out.println("ins ke" + i + ": " + dat.instance(i).toString());
 //        }
-        
         return dat;
     }
     
+    //load model, nama modelnya aja ga perlu .model
     public Classifier loadModel(String path) throws Exception {
         Classifier classifiers;
         classifiers = (Classifier)SerializationHelper.read(path+".model");
@@ -95,13 +101,34 @@ public class WekaClass {
         eval = new Evaluation(temp);
         eval.crossValidateModel(fc, temp, 10, new Random(1));
         System.out.println(eval.toSummaryString());
-        SerializationHelper.write("src\\java\\resource\\bayes.model", fc);
+        SerializationHelper.write("src\\java\\resource\\news.model", fc);
     }
     
-    public void reBuildModel(String trainFile) {
-        
+    //add new train yg baru ke file training, ntar rebuildnya tinggal build
+    public void addToFile(ArrayList<String> NewTrain) throws IOException {
+        FileWriter pw = new FileWriter("src\\java\\resource\\trainFile.csv", true);
+        for(String s:NewTrain){
+            System.out.println(s);
+            pw.append(s);
+            pw.append("\n");
+        }
+        pw.flush();
+        pw.close();
     }
     
+    //ambil instance ke idx
+    public ArrayList<String> getNewTrain(ArrayList<Integer> idx, Instances source) throws Exception {
+        ArrayList<String> res = new ArrayList<String>();
+        for (int i=0; i<source.numInstances(); i++){
+            for (Integer idx1 : idx) {
+                if (i == idx1) {
+                    res.add(source.instance(i).toString());
+                }
+            }
+        }
+        return res;
+    } 
+
     //cuman ambil atribut yg namanya FULL_TEXT sama LABEL
     public Instances RemoveAttribute(Instances source) throws Exception {
         Instances res = null;
@@ -140,11 +167,9 @@ public class WekaClass {
         return res;
     }
     
-    
     //Nominal To string doang
     public Instances Preproccess (Instances source) throws Exception {
         Instances res = null;
-        //NumericToNominal ntn = new NumericToNominal();
         NominalToString nts = new NominalToString();
         
         //Nominal to String
@@ -172,52 +197,132 @@ public class WekaClass {
     }
     
     //load model sm preproccess udah disini
-    public void classify (Instances dataTest) throws Exception {
-        Classifier cl = loadModel("src\\java\\resource\\bayes");
+    public ArrayList<Integer> classifyCSV (Instances dataTest, Instances dataTrain) throws Exception {
+        Classifier cl = loadModel("src\\java\\resource\\news");
         ArrayList<Integer> listWrong = new ArrayList<Integer>();
-      
-            
+        
+        Instances tempTrain = RemoveAttribute(dataTrain);
+        tempTrain = Preproccess(tempTrain);
+        ArrayList<String> listLabel = new ArrayList();
+        for (int i=0; i<tempTrain.classAttribute().numValues(); i++){
+            listLabel.add(i, tempTrain.classAttribute().value(i));
+        }
+        
         //preproccess
         Instances temp = RemoveAttribute(dataTest);
-        
         temp = Preproccess(temp);
         
         System.out.println("--- Do classify");
         System.out.println("class index: " + temp.classIndex());
-        
         for (int i = 0; i<temp.numInstances(); i++) {
-            String actual = temp.instance(i).stringValue(1);
+            String actual = temp.classAttribute().value((int) temp.instance(i).classValue()); //Ngeluarin label bertipe string dari actual
+            double actualDouble = listLabel.indexOf(actual); //mencari index dari label actual di listLabel
             double ipred = cl.classifyInstance(temp.instance(i));
-            System.out.println("ipred: " + ipred);
-            String pred = temp.classAttribute().value((int)ipred);
-            System.out.println(i);
-            System.out.println("pred: " + pred + ", actual: " + actual);
-            if (!pred.equals(actual)) {
+            System.out.println("ipred: " + ipred + ", actual: " + actualDouble);
+            if (ipred!=actualDouble) {
                 listWrong.add(i);
             }
         }
         for (int i = 0; i<listWrong.size(); i++) {
             System.out.println(listWrong.get(i));
         }
+        
+        return listWrong;
+    }
+    
+    //classify text
+    public void classifyIns (Instances inst) throws Exception {
+        Classifier cl = loadModel("src\\java\\resource\\bayes");
+        Instances temp =null;
+        
+        //preproccess
+        temp = Preproccess(inst);
+        
+        System.out.println("--- Do classify");
+        for (int i = 0; i<temp.numInstances(); i++) {
+            String actual = temp.instance(i).attribute(1).toString();
+            //double actual = temp.instance(i).classValue();
+            double ipred = cl.classifyInstance(temp.instance(i));
+            System.out.println("ipred: " + ipred + ", actual: " + actual);
+            //String pred = temp.classAttribute().value((int)ipred);
+            System.out.println(i);
+            //System.out.println("pred: " + pred + ", actual: " + actual);
+            //if (!pred.equals(actual)) {
+            //    TO DO
+            //}
+        }
+    }
+    
+    //bikin instance dari file text
+    public Instances makeInstances(String text) {
+        //Create instance form text
+        FastVector fvNominalVal = new FastVector(2); 
+        fvNominalVal.addElement("Hiburan"); 
+        fvNominalVal.addElement("Pendidikan");
+        fvNominalVal.addElement("Politik");
+        fvNominalVal.addElement("Hukum dan Kriminal"); 
+        fvNominalVal.addElement("Sosial Budaya");
+        fvNominalVal.addElement("Olahraga"); 
+        fvNominalVal.addElement("Teknologi dan Sains");
+        fvNominalVal.addElement("Ekonomi dan Bisnis");
+        fvNominalVal.addElement("Kesehatan");
+        fvNominalVal.addElement("Bencana dan Kecelakaan");
+        Attribute attribute2 = new Attribute("LABEL", fvNominalVal); 
+        Attribute attribute1 = new Attribute("FULL_TEXT",(FastVector) null);
+        // Create list of instances with one element 
+        FastVector fvWekaAttributes = new FastVector(2); 
+        fvWekaAttributes.addElement(attribute1); 
+        fvWekaAttributes.addElement(attribute2); 
+        Instances instances = new Instances("Test relation", fvWekaAttributes, 1); 
+        // Set class index 
+        instances.setClassIndex(1); 
+        // Create and add the instance 
+        DenseInstance instance = new DenseInstance(2); 
+        instance.setValue(attribute1, text); 
+        // instance.setValue((Attribute)fvWekaAttributes.elementAt(1), text); 
+        instances.add(instance);
+        return instances;
     }
     
     public static void main (String[] args) throws Exception {
         WekaClass weka = new WekaClass();
         Instances inst;
+        Instances dataTest = weka.loadData("src\\java\\resource\\trainFile.csv");
+        Instances dataTrain = weka.loadData("src\\java\\resource\\trainFile.csv");
         Classifier classifiers;
         
-        inst = weka.loadData("src\\java\\resource\\testFile.csv");
-        
-        
+        ///instance dari text
+        String text;
+        text = "Metrotvnews.com, Surabaya: Djarum Black Autoblackthrough (ABT) tahun 2013 memulai seri pembuka di Surabaya 13-14 April. Kota yang tak pernah lepas dari gelaran ABT ini selalu menampilkan tren modifikasi paling terbaru dan selalu menjadi magnet bagi kota-kota di sekitaran seperti� Malang, Yogyakarta, Solo hingga Bali.\\nTren modifikasi di Autoblackthrough Surabaya setiap tahunnya selalu berubah. Beberapa tahun lalu sempat tampil model elegan hingga terakhir gelaran adalah aliran street racing. Hal inilah yang membuat pesertanya tak pernah surut.\\nDipastikan sudah lebih dari 100 perserta ikut ambil bagian di Gramedia Expo. Tak salah bila Djarum Black Autoblackthrough 2013 masih menjadi trend setter dan `The Hottest Hi Tech Modified Motorshow`.\\n\\\"Autoblackthrough merupakan sebuah ajang lomba dan pamer kehebatan modifikasi otomotif paling inovatif, kreatif dan ekstrem di tanah air. Program ini ditujukan untuk memotivasi para peserta untuk mengeluarkan hobi, self expression, eksistensi diri dan komersil dalam mempromosikan bengkel modifikasinya,\\\" ujar Raymond Portier, Brand Manager Djarum Black.\\nAutoblackthrough Surabaya tak sekadar menggelar kontes modifikasi mobil, namun juga menantang para penggemar performa mesin melalui kontes Dyno Attraction. Djarum Black mendatangkan mesin dinamometer MainLine DynoLog yang khusus didatangkan dari Sydney, Australia.\\nMainline DynoLog merupakan alat ukur performa mesin (horse power dan torsi) atau disebut dinamometer berstandar internasional yang menghitung langsung performa mesin melalui penggerak roda sistem 2WD dan 4WD.\\n\\\"Keandalan para engine tuner Indonesia akan dibuktikan oleh mesin ukur Mainline DynoLog yang didatangkan khusus untuk ajang Djarum Black Autoblackthrough ini. Mainline DynoLog dari Australia yakni mesin dinamo meter yang mampu mengukur Horse Power (HP) pada roda mobil dengan penggerak sistem 2WD dan 4WD,\\\" yakin Raymond.\\nUntuk sesi Black Out Loud di Autoblackthrough ini terdapat kompetisi SQ, SQL dan SPL. Autoblackthrough tahun ini menggandeng EASCA (European Auto Sound Association), asosiasi audio mobil eropa yang bermarkas di Jerman dan memiliki regulasi sejumlah sistem penjurian yang digunakan di seluruh dunia.\\nSaat penilaian SPL Autoblackthrough 2013 pihak juri menggunakan CD Blackxperience.com Soundtraxx� dan alat ukur Term Lab yang didatangkan langsung dari Amerika, sedangkan SQ Autoblackthrough 2013 menggunakan CD dan sistem penjurian EASCA.\\nSementara untuk SQL (Sound Quality Loud) juga dihadirkan dalam kontes Black Out Loud. Saat penjurian menggunakan dua buah CD berbeda. CD pertama adalah BlackXperience.com Soundtraxx dan CD kedua merupakan standar EASCA.\\nMeramaikan gelaran ABT Surabaya sepanjang dua hari, para pengunjung dan peserta akan dimanjakan oleh hiburan musik dari band terkenal dan female DJ Djarum Black secara spesial mendatangkan band terkenal seperti NAIF. Kemudian Spinach Candies serta Girlkhana dan Female DJ Chantal Dewi 1945MF. ";
+        //inst = weka.makeInstances(text);
+       
+        ///print atribut dan instance
 //        for (int i=0; i<inst.numAttributes(); i++){
 //            System.out.println("attr_name:" +inst.attribute(i).name());
 //            //System.out.println(inst.attribute(i).isString());
 //        }
 //        System.out.println(inst.classIndex());
-        
-        weka.classify(inst);
+//        for (int i=0; i<inst.numInstances(); i++) {
+//            System.out.println("ins ke" + i + ": " + inst.instance(i).toString());
+//        }
         
         //inst = weka.RemoveAttribute(inst);
-        //weka.buildModel(inst);
+        
+        //weka.buildModel(dataTrain);
+        
+        Instances toCSV = weka.RemoveAttribute(dataTrain);
+        ArrayList<Integer> idxWrong = new ArrayList<Integer>();
+        ArrayList<String> st = null;
+        //idxWrong.add(1);
+        //idxWrong.add(8);
+        idxWrong = weka.classifyCSV(dataTest, dataTrain);
+       
+        //st = weka.getNewTrain(idxWrong, toCSV);
+        //for (String s:st) {
+        //    System.out.println(s);
+        //}
+        //weka.addToFile(st);
+        //Instances newTrain = weka.loadData("src\\java\\resource\\trainFile.csv");
+        //weka.buildModel(newTrain);
     }
 }
