@@ -14,7 +14,6 @@ import weka.core.tokenizers.Tokenizer;
 import weka.core.tokenizers.WordTokenizer;
 import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.NominalToString;
-import weka.filters.unsupervised.attribute.NumericToNominal;
 import weka.filters.unsupervised.attribute.Remove;
 import weka.filters.unsupervised.attribute.StringToWordVector;
 
@@ -30,8 +29,8 @@ public class WekaClass {
         Instances dat = null;
         dat = DataSource.read(path);
         dat.setClassIndex(dat.numAttributes()-1);
-//        System.out.println("class index load data: " + dat.classIndex());
-//        System.out.println("Instances loaded");
+//        System.out.println("class index load data: " + dat.classIndex() + ", name :" + dat.attribute(dat.classIndex()).name() + ", isNominal: " + dat.attribute(dat.classIndex()).isNominal());
+        System.out.println("Instances loaded");
 //        for (int i=0; i<10; i++) {
 //            System.out.println("ins ke" + i + ": " + dat.instance(i).toString());
 //        }
@@ -45,7 +44,8 @@ public class WekaClass {
         return classifiers;
     }
     
-    // kalo make ga perlu preprocces, udah ada preprocces di sini, tp perlu remove attribute
+    // kalo make ga perlu preprocces, udah ada preprocces di sini, 
+    // tp perlu remove attribute kalo pake testData
     public void buildModel(Instances source) throws Exception{
         Instances temp = null;
         Classifier classifiers;
@@ -79,21 +79,36 @@ public class WekaClass {
         fc.setFilter(filter);
         fc.buildClassifier(temp);
         
+        System.out.println("After Filter");
+        for (int i=0; i<temp.numAttributes(); i++) {
+            System.out.print(temp.attribute(i).name());
+            System.out.print(",");
+        }
+        System.out.println();
+        for (int i=0; i<10; i++) {
+            System.out.println("ins ke" + i + ": " + temp.instance(i).toString());
+        }
+        for (int i =0; i<temp.numAttributes(); i++){
+            System.out.println("attr : "+ temp.attribute(i).name() + "isstring : " + temp.attribute(i).isString() );
+        }
+        
         eval = new Evaluation(temp);
         eval.crossValidateModel(fc, temp, 10, new Random(1));
-        SerializationHelper.write("src\\java\\resource\\bayes.model", classifiers);
+        System.out.println(eval.toSummaryString());
+        SerializationHelper.write("src\\java\\resource\\bayes.model", fc);
     }
     
     public void reBuildModel(String trainFile) {
         
     }
     
+    //cuman ambil atribut yg namanya FULL_TEXT sama LABEL
     public Instances RemoveAttribute(Instances source) throws Exception {
         Instances res = null;
         int[] idx = new int[2];
         
         for (int i=0; i<source.numAttributes(); i++) {
-            if(source.attribute(i).name().equals("ID_KELAS")) {
+            if(source.attribute(i).name().equals("LABEL")) {
                 idx[1] = i;
             }
             else if (source.attribute(i).name().equals("FULL_TEXT")) {
@@ -108,109 +123,76 @@ public class WekaClass {
         remove.setInputFormat(source);
         res = Filter.useFilter(source,remove);
         res.setClassIndex(res.numAttributes()-1);
+        
+        System.out.println("After Remove Attribute");
+//        for (int i=0; i<res.numAttributes(); i++) {
+//            System.out.print(res.attribute(i).name());
+//            System.out.print(",");
+//        }
+//        System.out.println();
+//        for (int i=0; i<res.numInstances(); i++) {
+//            System.out.println("ins ke" + i + ": " + res.instance(i).toString());
+//        }
+//        for (int i =0; i<res.numAttributes(); i++){
+//            System.out.println("attr : "+ res.attribute(i).name() + "isnominal : " + res.attribute(i).isNominal() );
+//        }
+        
         return res;
     }
     
     
+    //Nominal To string doang
     public Instances Preproccess (Instances source) throws Exception {
-        Instances temp1 = null;
         Instances res = null;
-        NumericToNominal ntn = new NumericToNominal();
+        //NumericToNominal ntn = new NumericToNominal();
         NominalToString nts = new NominalToString();
-        StringToWordVector stw = new StringToWordVector();
-        
-//        //Numeric to Nominal
-//        ntn.setInputFormat(source);
-//        String[] opt1 = new String[2];
-//        opt1[0] = "-R";
-//        opt1[1] = "last";
-//        temp1 = Filter.useFilter(source,ntn);
-        
-        System.out.println("After Numeric To nominal");
-        for (int i=0; i<temp1.numAttributes(); i++) {
-            System.out.print(temp1.attribute(i).name());
-            System.out.print(",");
-        }
-        System.out.println();
-        for (int i=0; i<10; i++) {
-            System.out.println("ins ke" + i + ": " + temp1.instance(i).classValue());
-        }
         
         //Nominal to String
         String[] opt2 = new String[2];
         opt2[0] = "-C";
         opt2[1] = "first";
         nts.setOptions(opt2);
-        nts.setInputFormat(temp1);
-        res = Filter.useFilter(temp1, nts);
+        nts.setInputFormat(source);
+        res = Filter.useFilter(source, nts);
         
-        System.out.println("After NOminal To String");
-        for (int i=0; i<res.numAttributes(); i++) {
-            System.out.print(res.attribute(i).name());
-            System.out.print(",");
-        }
-        System.out.println();
-        for (int i=0; i<10; i++) {
-            System.out.println("ins ke" + i + ": " + res.instance(i).classValue());
-        }
+        System.out.println("After Nominal To String");
+//        for (int i=0; i<res.numAttributes(); i++) {
+//            System.out.print(res.attribute(i).name());
+//            System.out.print(",");
+//        }
+//        System.out.println();
+//        for (int i=0; i<10; i++) {
+//            System.out.println("ins ke" + i + ": " + res.instance(i).toString());
+//        }
+//        for (int i =0; i<res.numAttributes(); i++){
+//            System.out.println("attr : "+ res.attribute(i).name() + "isstring : " + res.attribute(i).isString() );
+//        }
         
         return res;
     }
     
+    //load model sm preproccess udah disini
     public void classify (Instances dataTest) throws Exception {
         Classifier cl = loadModel("src\\java\\resource\\bayes");
         ArrayList<Integer> listWrong = new ArrayList<Integer>();
-        
-        
-        System.out.println("Before preproccess");
-        for (int i=0; i<dataTest.numAttributes(); i++) {
-            System.out.print(dataTest.attribute(i).name());
-            System.out.print(",");
-        }
-        System.out.println();
-        for (int i=0; i<10; i++) {
-            System.out.println("ins ke" + i + ": " + dataTest.instance(i).classValue());
-        }
+      
             
         //preproccess
         Instances temp = RemoveAttribute(dataTest);
-        System.out.println("After remove attr");
-        System.out.println("class index: " + temp.classIndex());
-        for (int i=0; i<temp.numAttributes(); i++) {
-            System.out.print(temp.attribute(i).name());
-            System.out.print(",");
-        }
-        System.out.println();
-        for (int i=0; i<10; i++) {
-            System.out.println("ins ke" + i + ": " + temp.instance(i).classValue());
-        }
         
         temp = Preproccess(temp);
-        
-        System.out.println("After preproccess");
-        System.out.println("class index: " + temp.classIndex());
-        for (int i=0; i<temp.numAttributes(); i++) {
-            System.out.print(temp.attribute(i).name());
-            System.out.print(",");
-        }
-        System.out.println();
-        for (int i=0; i<10; i++) {
-            System.out.println("ins ke" + i + ": " + temp.instance(i).classValue());
-        }
-        
-        System.out.println("After Preproccess: ");
-        System.out.println("temp class index: " + temp.classIndex());
-        
         
         System.out.println("--- Do classify");
         System.out.println("class index: " + temp.classIndex());
         
         for (int i = 0; i<temp.numInstances(); i++) {
-            double actual = temp.instance(i).classValue();
-            double pred = cl.classifyInstance(temp.instance(i));
+            String actual = temp.instance(i).stringValue(1);
+            double ipred = cl.classifyInstance(temp.instance(i));
+            System.out.println("ipred: " + ipred);
+            String pred = temp.classAttribute().value((int)ipred);
             System.out.println(i);
-            System.out.println("pred: " + pred + "actual: " + actual);
-            if (pred!=actual) {
+            System.out.println("pred: " + pred + ", actual: " + actual);
+            if (!pred.equals(actual)) {
                 listWrong.add(i);
             }
         }
@@ -235,7 +217,7 @@ public class WekaClass {
         
         weka.classify(inst);
         
-        //inst = weka.Preproccess(inst);
+        //inst = weka.RemoveAttribute(inst);
         //weka.buildModel(inst);
     }
 }
