@@ -29,6 +29,7 @@ import weka.filters.unsupervised.attribute.StringToWordVector;
  * @author Afik
  */
 public class WekaClass {
+    public double percentCorrect;
     
     //load data train/test, full path
     public Instances loadData(String path) throws Exception {
@@ -36,10 +37,7 @@ public class WekaClass {
         dat = DataSource.read(path);
         dat.setClassIndex(dat.numAttributes()-1);
         System.out.println("Instances loaded");
-//        System.out.println("class index load data: " + dat.classIndex() + ", name :" + dat.attribute(dat.classIndex()).name() + ", isNominal: " + dat.attribute(dat.classIndex()).isNominal());        
-//        for (int i=0; i<10; i++) {
-//            System.out.println("ins ke" + i + ": " + dat.instance(i).toString());
-//        }
+
         return dat;
     }
     
@@ -53,6 +51,7 @@ public class WekaClass {
     // kalo make ga perlu preprocces, udah ada preprocces di sini, 
     // tp perlu remove attribute kalo pake testData
     public void buildModel(Instances source) throws Exception{
+        System.out.println("Load model....");
         Instances temp = null;
         Classifier classifiers;
         FilteredClassifier fc;
@@ -70,9 +69,9 @@ public class WekaClass {
         filter.setAttributeIndices("first-last");
         filter.setIDFTransform(true);
         filter.setTFTransform(true);
-        Tokenizer token = new WordTokenizer();
-        String wd = " \n +	.,;:'\"()?!--*0123456789 /\"%” \\0 ";
-        token.tokenize(wd);
+        WordTokenizer token = new WordTokenizer();
+        String wd = " \n +	.,;:'\"()?!--*0123456789` /\"%” \\0 ";
+        token.setDelimiters(wd);
         filter.setTokenizer(token);
         filter.setLowerCaseTokens(true);
         filter.setOutputWordCounts(true);
@@ -84,20 +83,7 @@ public class WekaClass {
         fc.setClassifier(classifiers);
         fc.setFilter(filter);
         fc.buildClassifier(temp);
-        
-        System.out.println("After Filter");
-        for (int i=0; i<temp.numAttributes(); i++) {
-            System.out.print(temp.attribute(i).name());
-            System.out.print(",");
-        }
-        System.out.println();
-        for (int i=0; i<10; i++) {
-            System.out.println("ins ke" + i + ": " + temp.instance(i).toString());
-        }
-        for (int i =0; i<temp.numAttributes(); i++){
-            System.out.println("attr : "+ temp.attribute(i).name() + "isstring : " + temp.attribute(i).isString() );
-        }
-        
+       
         eval = new Evaluation(temp);
         eval.crossValidateModel(fc, temp, 10, new Random(1));
         System.out.println(eval.toSummaryString());
@@ -198,8 +184,11 @@ public class WekaClass {
     
     //load model sm preproccess udah disini
     public ArrayList<Integer> classifyCSV (Instances dataTest, Instances dataTrain) throws Exception {
+        System.out.println("Clasify CSV......");
         Classifier cl = loadModel("src\\java\\resource\\news");
         ArrayList<Integer> listWrong = new ArrayList<Integer>();
+        ArrayList<String> outputString = new ArrayList<String>();
+        Instances rawDataTest = dataTest;
         
         //bikin list label
         ArrayList<String> listLabel = new ArrayList();
@@ -209,28 +198,31 @@ public class WekaClass {
         
         //preproccess
         Instances temp = RemoveAttribute(dataTest);
+        
         temp = Preproccess(temp);
         
         System.out.println("--- Do classify");
-        System.out.println("class index: " + temp.classIndex());
         for (int i = 0; i<temp.numInstances(); i++) {
             String actual = temp.classAttribute().value((int) temp.instance(i).classValue()); //Ngeluarin label bertipe string dari actual
             double actualDouble = listLabel.indexOf(actual); //mencari index dari label actual di listLabel
             double ipred = cl.classifyInstance(temp.instance(i));
-            System.out.println("ipred: " + ipred + ", actual: " + actualDouble);
+            String label = listLabel.get((int)ipred);
+            outputString.add(label);
             if (ipred!=actualDouble) {
                 listWrong.add(i);
             }
         }
-        for (int i = 0; i<listWrong.size(); i++) {
-            System.out.println(listWrong.get(i));
-        }
+        
+        percentCorrect = 100-(((double)listWrong.size()/(double)temp.numInstances())*100);
+        System.out.println("percentCorrect : " + percentCorrect + "%");
+        
+        writePrediction(rawDataTest, outputString);
         
         return listWrong;
     }
     
     //classify text
-    public void classifyIns (Instances inst, Instances dataTrain) throws Exception {
+    public String classifyIns (Instances inst, Instances dataTrain) throws Exception {
         Classifier cl = loadModel("src\\java\\resource\\bayes");
         Instances temp =null;
         
@@ -244,15 +236,9 @@ public class WekaClass {
         temp = Preproccess(inst);
         
         System.out.println("--- Do classify");
-        for (int i = 0; i<temp.numInstances(); i++) {
-            String actual = temp.classAttribute().value((int) temp.instance(i).classValue()); //Ngeluarin label bertipe string dari actual
-            double actualDouble = listLabel.indexOf(actual); //mencari index dari label actual di listLabel
-            double ipred = cl.classifyInstance(temp.instance(i));
-            System.out.println("ipred: " + ipred + ", actual: " + actualDouble);
-            if (ipred!=actualDouble) {
-                // TODO Wrong
-            }
-        }
+        double ipred = cl.classifyInstance(temp.instance(0));
+        String label = listLabel.get((int)ipred);
+        return label;
     }
     
     //bikin instance dari file text
@@ -286,11 +272,34 @@ public class WekaClass {
         return instances;
     }
     
+    public void writePrediction(Instances dataSource, ArrayList<String> result) throws IOException {
+        System.out.println("write Prediction to CSV");
+        FileWriter fw = new FileWriter("src\\java\\resource\\output.csv");
+        String s = "";
+       
+        if (dataSource.numInstances()==result.size()){
+            fw.append("ID_ARTIKEL,LABEL\n");
+            for(int i=0; i<result.size(); i++){
+                //System.out.println(i);
+                System.out.println((int)dataSource.instance(i).value(dataSource.attribute(1)) + "," + result.get(i));
+                s = (int)dataSource.instance(i).value(dataSource.attribute(1)) + "," + result.get(i);
+                fw.append(s);
+                fw.append("\n");
+            }
+            fw.flush();
+            fw.close();
+        }
+        else {
+            System.out.println("Ukuran ngga sama!");
+        }
+        
+    }
+    
     public static void main (String[] args) throws Exception {
         WekaClass weka = new WekaClass();
         Instances inst;
-        Instances dataTest = weka.loadData("src\\java\\resource\\trainFile.csv");
-        Instances dataTrain = weka.loadData("src\\java\\resource\\trainFile.csv");
+        Instances dataTest = weka.loadData("src\\java\\resource\\news_aggregator_full.csv");
+        Instances dataTrain = weka.loadData("src\\java\\resource\\news_aggregator_text_label.csv");
         Classifier classifiers;
         
         ///instance dari text
@@ -310,21 +319,23 @@ public class WekaClass {
         
         //inst = weka.RemoveAttribute(inst);
         
-        //weka.buildModel(dataTrain);
+        weka.buildModel(dataTrain);
         
-        Instances toCSV = weka.RemoveAttribute(dataTrain);
-        ArrayList<Integer> idxWrong = new ArrayList<Integer>();
-        ArrayList<String> st = null;
-        //idxWrong.add(1);
-        //idxWrong.add(8);
-        idxWrong = weka.classifyCSV(dataTest, dataTrain);
-       
-        //st = weka.getNewTrain(idxWrong, toCSV);
-        //for (String s:st) {
-        //    System.out.println(s);
-        //}
+//        Instances toCSV = weka.RemoveAttribute(dataTrain);
+//        ArrayList<Integer> idxWrong = new ArrayList<Integer>();
+//        ArrayList<String> st = null;
+//        //idxWrong.add(1);
+//        //idxWrong.add(8);
+//        idxWrong = weka.classifyCSV(dataTest, dataTrain);
+//       
+//        st = weka.getNewTrain(idxWrong, toCSV);
+//        for (String s:st) {
+//            System.out.println(s);
+//        }
+        
         //weka.addToFile(st);
         //Instances newTrain = weka.loadData("src\\java\\resource\\trainFile.csv");
         //weka.buildModel(newTrain);
+        
     }
 }
