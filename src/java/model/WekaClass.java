@@ -29,20 +29,31 @@ import weka.filters.unsupervised.attribute.StringToWordVector;
  */
 public class WekaClass {
     public double percentCorrect;
-    static String pathUtama = "src\\java\\resource\\";
-    static String pathTest = pathUtama + "news_aggregator_full.csv";
-    static String pathTrain = pathUtama + "news_aggregator_text_label.csv";
-    static String pathOutput = pathUtama + "output.csv";
-    static String pathStopwords = pathUtama + "stopwords_id.txt";
-    static String pathSaveModel = pathUtama + "news.model";
-    static String pathLoadModel = pathUtama + "news";
+    public static String pathUtama = "D:\\AFIK\\Project\\News Category\\NewsCategory\\src\\java\\resource\\";
+    public static String pathTest = pathUtama + "news_aggregator_text_label.csv";
+    public static String pathTrain = pathUtama + "news_aggregator_text_label.csv";
+    public static String pathOutput = pathUtama + "output.csv";
+    public static String pathStopwords = pathUtama + "stopwords_id.txt";
+    public static String pathSaveModel = pathUtama + "news.model";
+    public static String pathLoadModel = pathUtama + "news";
+    
+    public static void setPathUtama(String in){
+        pathUtama=in;
+        pathTest = pathUtama + "news_aggregator_text_label.csv";
+        pathTrain = pathUtama + "news_aggregator_text_label.csv";
+        pathOutput = pathUtama + "output.csv";
+        pathStopwords = pathUtama + "stopwords_id.txt";
+        pathSaveModel = pathUtama + "news.model";
+        pathLoadModel = pathUtama + "news";
+    }
     
     //load data train/test, full path
     public Instances loadData(String path) throws Exception {
+        System.out.println("Instances loaded" + new File(".").getPath());
         Instances dat = null;
         dat = DataSource.read(path);
         dat.setClassIndex(dat.numAttributes()-1);
-        System.out.println("Instances loaded");
+       
 
         return dat;
     }
@@ -216,7 +227,7 @@ public class WekaClass {
             String label = listLabel.get((int)ipred);
             outputActual.add(actual);
             outputString.add(label);
-            if (ipred!=actualDouble) {
+            if (ipred!=actualDouble || actualDouble == -1) {
                 listWrong.add(i);
             }
         }
@@ -287,12 +298,12 @@ public class WekaClass {
         String s = "";
        
         if (dataSource.numInstances()==predicted.size()){
-            fw.append("ID_ARTIKEL,LABEL\n");
+            fw.append("ID_ARTIKEL,ACTUAL,LABEL\n");
             for(int i=0; i<predicted.size(); i++){
                 //System.out.println(i);
                 //System.out.println((int)dataSource.instance(i).value(dataSource.attribute(1)) + "," + result.get(i));
-                s = (int)dataSource.instance(i).value(dataSource.attribute(1)) + "," + predicted.get(i);
-                //s = (int)dataSource.instance(i).value(dataSource.attribute(1)) + "," + actual.get(i) + "," + predicted.get(i);
+                //s = (int)dataSource.instance(i).value(dataSource.attribute(1)) + "," + predicted.get(i);
+                s = dataSource.instance(i).toString(0)+ "," + actual.get(i) + "," + predicted.get(i);
                 fw.append(s);
                 fw.append("\n");
             }
@@ -308,7 +319,7 @@ public class WekaClass {
     public static void main (String[] args) throws Exception {
         WekaClass weka = new WekaClass();
         Instances inst;
-        Instances dataTest = weka.loadData(pathTest);
+        Instances dataTest = weka.loadData("D:\\AFIK\\Project\\News Category\\NewsCategory\\fileFile.csv");
         Instances dataTrain = weka.loadData(pathTrain);
         Classifier classifiers;
         
@@ -329,16 +340,16 @@ public class WekaClass {
         
         //inst = weka.RemoveAttribute(inst);
         
-        weka.buildModel(dataTrain);
+//        weka.buildModel(dataTrain);
         
-//        Instances toCSV = weka.RemoveAttribute(dataTest);
-//        ArrayList<Integer> idxWrong = new ArrayList<Integer>();
-//        ArrayList<String> newTrain = null;
-//        //idxWrong.add(1);
-//        //idxWrong.add(8);
-//        idxWrong = weka.classifyCSV(dataTest, dataTrain);
-//       
-//        newTrain = weka.getNewTrain(idxWrong, toCSV);
+        Instances toCSV = weka.RemoveAttribute(dataTest);
+        ArrayList<Integer> idxWrong = new ArrayList<Integer>();
+        ArrayList<String> newTrain = null;
+        //idxWrong.add(1);
+        //idxWrong.add(8);
+        idxWrong = weka.classifyCSV(dataTest, dataTrain);
+       
+        newTrain = weka.getNewTrain(idxWrong, toCSV);
 //        for (String s:newTrain) {
 //            System.out.println(s);
 //        }
